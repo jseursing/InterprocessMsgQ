@@ -1,0 +1,138 @@
+#include "MsgQ.h"
+#include "OSInterface.h"
+#include "Task.h"
+#include <string>
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: GetQId
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+uint32_t MsgQ::GetQId() const
+{
+  return QId;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: GetMaxLength
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+uint32_t MsgQ::GetMaxLength() const
+{
+  return MaxLength;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: GetMaxObjects
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+uint32_t MsgQ::GetMaxObjects() const
+{
+  return MaxObjects;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: GetNumObjects
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+uint32_t MsgQ::GetNumObjects() const
+{
+  return *NumObjects;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: GetFreeObjects
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+bool MsgQ::ProcessTimeout(uint32_t timeout, bool outgoing)
+{
+  bool performWait = false;
+
+  bool qAvailable = true;
+  switch (outgoing)
+  {
+  case false:
+    if (0 == *NumObjects)
+    {
+      if (MsgQ::NO_WAIT == timeout)
+      {
+        qAvailable = false;
+      }
+      else
+      {
+        performWait = true;
+      }
+    }
+    else if (1 == *NumObjects)
+    {
+      // Reset the event now incase...
+      OSInterface::SignalReset(Signal);
+    }
+    break;
+  case true:
+    if (MaxObjects == *NumObjects)
+    {
+      if (MsgQ::NO_WAIT == timeout)
+      {
+        qAvailable = false;
+      }
+      else
+      {
+        performWait = true;
+      }
+    }
+    else if ((MaxObjects - 1) == *NumObjects)
+      {
+        // Reset the event now incase...
+        OSInterface::SignalReset(Signal);
+      }
+    break;
+  }
+
+
+  if (true == performWait)
+  {
+    if (StatusTypes::STATUS_OK !=
+        OSInterface::SignalWait(Signal, timeout))
+    {
+      qAvailable = false;
+    }
+  }
+
+  return qAvailable;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: MsgQ
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+MsgQ::MsgQ(uint32_t qid, uint32_t maxObjects) :
+  QId(qid),
+  MaxLength(0),
+  MaxObjects(maxObjects),
+  NumObjects(nullptr)
+{
+  std::string queueSignalName = "Global\\Queue_Sem_" + std::to_string(QId);
+  Signal = OSInterface::SignalCreate(queueSignalName.c_str());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//
+// Function: ~MsgQ
+// Notes:    None
+//
+/////////////////////////////////////////////////////////////////////////////////////////
+MsgQ::~MsgQ()
+{
+}
